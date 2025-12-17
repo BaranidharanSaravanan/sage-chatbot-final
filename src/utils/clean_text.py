@@ -1,24 +1,17 @@
-# utils/clean_text.py
-
 import re
 import string
 
-def clean_text(text: str) -> str:
+def clean_text_basic(text: str) -> str:
     """
-    Clean the input text and return a standardized version.
-    Steps:
-    1. Remove non-printable/control characters
-    2. Replace multiple spaces, tabs, newlines with a single space
-    3. Strip leading/trailing whitespace
-    4. Optional: normalize common PDF ligatures or hyphens
+    Basic, universal cleanup safe for ALL PDFs.
+    - Removes non-printable characters
+    - Normalizes common PDF ligatures
     """
     if not text:
         return ""
 
-    # Remove non-printable characters
     text = ''.join(c for c in text if c in string.printable)
 
-    # Replace ligatures often seen in PDFs
     ligatures = {
         "ﬁ": "fi",
         "ﬂ": "fl",
@@ -29,22 +22,30 @@ def clean_text(text: str) -> str:
     for k, v in ligatures.items():
         text = text.replace(k, v)
 
-    # Replace multiple spaces/tabs/newlines with a single space
-    text = re.sub(r'\s+', ' ', text)
-
-    # Remove hyphenation at line breaks (e.g., "exam-\nple" → "example")
-    text = re.sub(r'-\s+', '', text)
-
-    # Strip leading/trailing whitespace
-    text = text.strip()
-
     return text
 
 
-# Quick test when running directly
+def clean_text(text: str) -> str:
+    """
+    Stronger cleanup for final output.
+    - Collapses whitespace
+    - Removes hyphenation at line breaks
+    """
+    if not text:
+        return ""
+
+    text = clean_text_basic(text)
+    text = re.sub(r'(\w)-\s*\n\s*(\w)', r'\1\2', text)
+    text = re.sub(r'\s+', ' ', text)
+
+
+    return text.strip()
+
+
+# 🔹 LOCAL TEST (REMOVE BEFORE COMMIT)
 if __name__ == "__main__":
-    sample_text = "This is   a  sample \n\n PDF\ttext with  weird  spacing and ligatures ﬁ, ﬂ, ﬀ."
-    print("Before cleaning:")
-    print(sample_text)
-    print("\nAfter cleaning:")
-    print(clean_text(sample_text))
+    sample = "This  is   a   test-\n text with ligatures ﬁ ﬂ  \n\n and spacing."
+    print("Before:")
+    print(sample)
+    print("\nAfter:")
+    print(clean_text(sample))
