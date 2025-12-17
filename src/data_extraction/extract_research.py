@@ -32,15 +32,3 @@ def extract_research(pdf_path: str) -> str:
     return f"""===== SOURCE: research_innovation =====
 {cleaned}
 """
-
-
-# TEMPORARY TEST BLOCK - REMOVE BEFORE COMMIT
-if __name__ == "__main__":
-    text = extract_research("data/raw/research_innovation.pdf")
-    print("=" * 50)
-    print("EXTRACTION TEST - First 1000 characters:")
-    print("=" * 50)
-    print(text[:1000])
-    print("=" * 50)
-    print(f"Total length: {len(text)} characters")
-    print("=" * 50)
