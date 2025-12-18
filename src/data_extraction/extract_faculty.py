@@ -22,8 +22,4 @@ if __name__ == "__main__":
     pdf_path = "data/raw/faculty_staff.pdf"
     text = extract_faculty(pdf_path)
     print(text[:1000])
-# 🔹 TEMP LOCAL TEST (REMOVE BEFORE COMMIT)
-if __name__ == "__main__":
-    pdf_path = "data/raw/faculty_staff.pdf"
-    text = extract_faculty(pdf_path)
-    print(text[:1000])   # show first 1000 characters
+
