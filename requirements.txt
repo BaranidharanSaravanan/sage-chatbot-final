@@ -2,3 +2,5 @@ pymupdf
 sentence-transformers>=2.2.2
 torch>=2.0.0
 chromadb>=0.4.22
+langgraph
+langchain-core

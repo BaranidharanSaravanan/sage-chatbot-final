@@ -14,7 +14,7 @@ class Generator:
         """
         Args:
             model_name (str): Ollama model name
-            max_tokens (int): Maximum tokens for response
+            max_tokens (int): Maximum tokens for response (currently unused)
         """
         self.model_name = model_name
         self.max_tokens = max_tokens
@@ -48,7 +48,7 @@ class Generator:
         try:
             # Call Ollama CLI
             result = subprocess.run(
-                ["ollama", "generate", self.model_name, "--max-tokens", str(self.max_tokens)],
+                ["ollama", "run", self.model_name],
                 input=prompt.encode("utf-8"),
                 capture_output=True,
                 check=True
