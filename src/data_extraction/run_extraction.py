@@ -1,44 +1,63 @@
-# src/data_extraction/run_extraction.py
-
 import os
-from src.data_extraction.extract_base import extract_from_folder
+
+# Barani
+from src.data_extraction.extract_admission import extract_admission
+from src.data_extraction.extract_facilities import extract_facilities
+from src.data_extraction.extract_academics import extract_academics
+
+# Darineesh
+from src.data_extraction.extract_fees import extract_fees
+from src.data_extraction.extract_tech_portals import extract_tech
+from src.data_extraction.extract_research import extract_research
+
+# Mani
+from src.data_extraction.extract_placement import extract_placement
+from src.data_extraction.extract_faculty import extract_faculty
+
+# Vetri
+from src.data_extraction.extract_student_life import extract_student_life
+from src.data_extraction.extract_admin import extract_admin
 
 
-def run_extraction(raw_folder: str, processed_folder: str, output_file: str = "cleaned_text.txt"):
+OUTPUT_PATH = "data/processed/cleaned_text.txt"
+
+
+def run_all_extractions() -> None:
     """
-    Orchestrator function to extract text from PDFs and write to a single file.
-
-    Steps:
-    1. Extract text from all PDFs in raw_folder
-    2. Merge all cleaned texts
-    3. Write once to processed_folder/output_file
+    Orchestrates all extractors and writes a single merged cleaned_text.txt
     """
+    outputs = []
 
-    # Extract all PDFs
-    extracted_dict = extract_from_folder(raw_folder)
-    if not extracted_dict:
-        print("No PDFs extracted. Exiting.")
-        return
+    # --- Barani ---
+    outputs.append(extract_admission("data/raw/admission_enrollment.pdf"))
+    outputs.append(extract_facilities("data/raw/campus_facilities.pdf"))
+    outputs.append(extract_academics("data/raw/academics"))
 
-    # Merge all texts
-    merged_text = ""
-    for filename, text in extracted_dict.items():
-        merged_text += f"\n--- {filename} ---\n{text}\n"
+    # --- Darineesh ---
+    outputs.append(extract_fees("data/raw/fees_scholarships.pdf"))
+    outputs.append(extract_tech("data/raw/tech_portals.pdf"))
+    outputs.append(extract_research("data/raw/research_innovation.pdf"))
 
-    # Ensure processed folder exists
-    os.makedirs(processed_folder, exist_ok=True)
+    # --- Mani ---
+    outputs.append(extract_placement("data/raw/placement_internship.pdf"))
+    outputs.append(extract_faculty("data/raw/faculty_staff.pdf"))
 
-    output_path = os.path.join(processed_folder, output_file)
+    # --- Vetri ---
+    outputs.append(extract_student_life("data/raw/student_life.pdf"))
+    outputs.append(extract_admin("data/raw/administration_regulations.pdf"))
+
+    # Ensure output directory exists
+    os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
 
     # Write once
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write(merged_text)
+    with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
+        for block in outputs:
+            if block and block.strip():
+                f.write(block)
+                f.write("\n\n")
 
-    print(f"Extraction complete! Cleaned text saved to {output_path}")
+    print("✅ Extraction complete → data/processed/cleaned_text.txt")
 
 
-# Quick test when running directly
 if __name__ == "__main__":
-    RAW_FOLDER = "data/raw"
-    PROCESSED_FOLDER = "data/processed"
-    run_extraction(RAW_FOLDER, PROCESSED_FOLDER)
+    run_all_extractions()
