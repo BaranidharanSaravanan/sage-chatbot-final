@@ -16,8 +16,7 @@ from src.data_extraction.extract_faculty import extract_faculty
 
 # Vetri
 from src.data_extraction.extract_student_life import extract_student_life
-from src.data_extraction.extract_admin import extract_admin
-
+from src.data_extraction.extract_admin import extract_regulations
 
 OUTPUT_PATH = "data/processed/cleaned_text.txt"
 
@@ -44,7 +43,7 @@ def run_all_extractions() -> None:
 
     # --- Vetri ---
     outputs.append(extract_student_life("data/raw/student_life.pdf"))
-    outputs.append(extract_admin("data/raw/administration_regulations.pdf"))
+    outputs.append(extract_regulations("data/raw/administration_regulations"))
 
     # Ensure output directory exists
     os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)

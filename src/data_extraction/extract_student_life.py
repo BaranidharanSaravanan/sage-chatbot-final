@@ -3,24 +3,24 @@
 from pathlib import Path
 from src.data_extraction.extract_base import extract_from_pdf_fitz
 
-def extract_student_life() -> str:
+def extract_student_life(pdf_path: str) -> str:
     """
-    Extract text from student_life.pdf only.
-    Uses shared base extractor.
+    Extract text from student_life.pdf.
+    
+    Args:
+        pdf_path (str): Path to the PDF file
+    
+    Returns:
+        str: Extracted text
     """
-
-    pdf_path = Path("data/raw/student_life.pdf")
-
-    if not pdf_path.exists():
-        raise FileNotFoundError(f"PDF not found: {pdf_path}")
-
-    text = extract_from_pdf_fitz(str(pdf_path))
+    path = Path(pdf_path)
+    if not path.exists():
+        raise FileNotFoundError(f"PDF not found: {path}")
+    
+    text = extract_from_pdf_fitz(str(path))
     return text
 
-
-# 🔹 LOCAL TEST (RUN THIS FILE ONLY)
+# 🔹 LOCAL TEST
 if __name__ == "__main__":
-    content = extract_student_life()
-
-    print("===== STUDENT LIFE PDF EXTRACTED TEXT (PREVIEW) =====")
-    print(content[:3000])   # preview first 3000 chars
+    content = extract_student_life("data/raw/student_life.pdf")
+    print(content[:3000])
