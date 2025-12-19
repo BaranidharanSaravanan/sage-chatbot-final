@@ -66,9 +66,3 @@ def extract_academics(_: str = "") -> str:
         sections.append(section.strip())
 
     return "\n\n".join(sections)
-
-
-# 🔹 LOCAL TEST (REMOVE BEFORE COMMIT)
-if __name__ == "__main__":
-    text = extract_academics()
-    print(text[:2000])
