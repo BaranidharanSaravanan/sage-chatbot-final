@@ -1,4 +1,15 @@
-__pycache__/
+# Python environment
 .venv/
-data/vector_db/
+__pycache__/
+*.pyc
 .pytest_cache/
+
+# ChromaDB / vector store
+data/vector_db/
+
+# OS / temp files
+.DS_Store
+
+# Local backup folder
+sage-chatbot-backup.git/
+

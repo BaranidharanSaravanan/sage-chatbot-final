@@ -15,12 +15,11 @@ ADMIN_REGULATION_FILES = [
     ("B.Tech", "NEP Regulations 2024-25", "PTU NEP Regulations 2024_25_ACM approved.pdf"),
 ]
 
-def extract_regulations(_: str = "") -> dict:
+def extract_regulations(_: str = "") -> str:
     """
-    Extract all administrative regulation PDFs and store raw and cleaned text.
-    Returns a dictionary with filename as key and a dict containing raw and cleaned text.
+    Extract all administrative regulation PDFs and return a single concatenated cleaned text string.
     """
-    all_texts = {}
+    all_cleaned_texts = []
 
     for program, regulation_type, filename in ADMIN_REGULATION_FILES:
         pdf_path = os.path.join(ADMIN_REGULATIONS_DIR, filename)
@@ -30,11 +29,16 @@ def extract_regulations(_: str = "") -> dict:
         raw_text = extract_from_pdf_fitz(pdf_path)
         cleaned = clean_text(raw_text)
 
-        all_texts[filename] = {
-            "program": program,
-            "regulation_type": regulation_type,
-            "raw_text": raw_text,
-            "cleaned": cleaned
-        }
+        # Optionally, add a header for each file
+        header = f"--- {program} | {regulation_type} | {filename} ---"
+        all_cleaned_texts.append(header)
+        all_cleaned_texts.append(cleaned)
 
-    return all_texts
+    return "\n\n".join(all_cleaned_texts)
+
+
+# 🔹 LOCAL TEST
+if __name__ == "__main__":
+    content = extract_regulations()
+    print("===== ADMIN REGULATIONS CLEANED TEXT PREVIEW =====")
+    print(content[:3000])  # first 3000 characters
