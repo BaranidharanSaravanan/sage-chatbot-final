@@ -10,3 +10,6 @@ data/vector_db/
 # OS / temp files
 .DS_Store
 
+# Local backup folder
+sage-chatbot-backup.git/
+
