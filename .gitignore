@@ -1,11 +1,6 @@
 # Python environment
 .venv/
 __pycache__/
-<<<<<<< HEAD
-.venv/
-data/vector_db/
-.pytest_cache/
-=======
 *.pyc
 .pytest_cache/
 
@@ -18,4 +13,3 @@ data/vector_db/
 # Local backup folder
 sage-chatbot-backup.git/
 
->>>>>>> 31ac2f3259b85d8519934a717cd7360e6150339c
