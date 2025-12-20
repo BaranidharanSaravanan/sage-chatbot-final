@@ -1,327 +1,235 @@
-# SAGE Chatbot - Architecture & Prompt Engineering
+# SAGE Chatbot – System Architecture
 
-## System Overview
+## 1. Introduction
 
-SAGE (Smart Academic Guidance Engine) is a RAG-based chatbot designed to answer university-related queries using only verified institutional documents. The system prioritizes **factual accuracy** and **hallucination prevention** over conversational fluency.
+SAGE (Smart Academic Guidance Engine) is a Retrieval-Augmented Generation (RAG) based chatbot designed to answer university-related questions using only official and verified institutional documents.
 
----
-
-## Architecture Components
-
-```
-User Query
-    ↓
-[Retriever] → Fetch top-K chunks from ChromaDB
-    ↓
-[Generator] → LLM generates answer from context ONLY
-    ↓
-Response (grounded or refusal)
-```
-
-### Component Responsibilities
-
-| Component | Purpose | Key Files |
-|-----------|---------|-----------|
-| **Data Extraction** | Extract & clean text from PDFs | `src/data_extraction/` |
-| **Embeddings** | Chunk text & create vector embeddings | `src/embeddings/` |
-| **Vector Store** | Store & retrieve document chunks | ChromaDB (`data/vector_db/`) |
-| **Retriever** | Fetch top-K relevant chunks for query | `src/retrieval/retriever.py` |
-| **Generator** | Generate context-grounded answers | `src/generation/generator.py` |
-| **RAG Pipeline** | Orchestrate retrieval → generation | `src/pipeline/rag_graph.py` |
+The primary goal of SAGE is accuracy and trust. If the required information is not available in the documents, the system will refuse to answer instead of guessing or generating incorrect information.
 
 ---
 
-## Prompt Engineering Strategy
+## 2. High-Level System Flow
 
-### 1. Design Philosophy
+User Question
+↓
+Retriever (Vector Search)
+↓
+Relevant Document Chunks
+↓
+Generator (LLM with strict rules)
+↓
+Final Answer OR Safe Refusal
 
-**Primary Goal:** Zero hallucination tolerance  
-**Secondary Goal:** Helpful, accurate responses  
-**Trade-off:** Refuse to answer rather than fabricate
+---
 
-### 2. System Prompt Structure
+## 3. Project Structure Overview
+SAGE/
+├── data/
+│ ├── raw/ # Original university PDFs
+│ ├── processed/ # Cleaned merged text
+│ └── vector_db/ # ChromaDB storage
+│
+├── src/
+│ ├── data_extraction/ # PDF extraction logic
+│ ├── embeddings/ # Text chunking & embeddings
+│ ├── retrieval/ # Context retrieval
+│ ├── generation/ # Answer generation
+│ ├── pipeline/ # RAG flow controller
+│ └── utils/ # Cleaning, config, logging
+│
+├── tests/ # Unit tests
+└── docs/
+└── architecture.md
 
-The generator uses a structured system prompt with three sections:
+---
 
-#### **Section A: Core Rules** (Non-negotiable constraints)
-```
-1. Answer ONLY from provided Context
-2. Refuse if Context lacks answer
-3. No assumptions or inferences
-4. No cross-context mixing (unless explicit)
-5. Ask for clarification if ambiguous
-```
+## 4. Data Extraction Layer
 
-**Rationale:** Establishes hard boundaries for the model's behavior.
+### Purpose
+Convert university PDFs into clean and structured text.
 
-#### **Section B: Response Guidelines** (Quality standards)
-```
-- Be concise and direct
-- Cite specific details (timings, locations)
-- Acknowledge partial information
-- Professional, helpful tone
-- Clear procedural steps
-```
+### Input
+- Academics (syllabus PDFs)
+- Admission & enrollment
+- Fees & scholarships
+- Facilities
+- Faculty
+- Placement
+- Research
+- Student life
+- Regulations
 
-**Rationale:** Ensures responses are useful when they CAN be provided.
+### Process
+1. Extract text using PyMuPDF
+2. Remove noise and formatting issues
+3. Normalize spacing and characters
+4. Add clear section headers
 
-#### **Section C: Forbidden Behaviors** (Explicit prohibitions)
-```
-- Never fabricate details
-- Never answer out-of-scope queries
-- Never use external knowledge
-- Never use uncertainty language ("I think", "probably")
-```
+### Output
+data/processed/cleaned_text.txt
 
-**Rationale:** Reinforces hallucination prevention through negative examples.
+### Key Files
+- `extract_base.py`
+- `extract_academics.py`
+- `extract_fees.py`
+- `extract_facilities.py`
+- `run_extraction.py`
 
-### 3. Prompt Template Format
+---
 
-```
-{SYSTEM_PROMPT}
+## 5. Embedding & Vector Store Layer
+
+### Purpose
+Make document content searchable using semantic similarity.
+
+### Process
+1. Split cleaned text into small chunks
+2. Convert each chunk into vector embeddings
+3. Store embeddings in ChromaDB
+
+### Technology
+- Embedding model: all-MiniLM-L6-v2
+- Vector database: ChromaDB (persistent)
+
+### Key Files
+- `embedder.py`
+- `vector_store.py`
+
+---
+
+## 6. Retrieval Layer
+
+### Purpose
+Find the most relevant document chunks for a user query.
+
+### Flow
+1. Convert user query into an embedding
+2. Perform similarity search in ChromaDB
+3. Retrieve top-K relevant chunks
+
+### Safety Rule
+- If no relevant chunks are found, the system stops and refuses to answer
+
+### Key File
+- `retriever.py`
+
+---
+
+## 7. Generation Layer
+
+### Purpose
+Generate answers strictly from retrieved context.
+
+### Model
+- Primary: llama3.1:8b (Ollama)
+- Fallback: DeepSeek
+
+### Prompt Rules
+1. Answer only from provided context
+2. Do not use external knowledge
+3. Do not guess or assume
+4. Refuse if information is missing
+
+### Prompt Structure
+SYSTEM RULES
 
 ===== CONTEXT =====
-[Chunk 1]
-<retrieved context 1>
+Retrieved document chunks
 
-[Chunk 2]
-<retrieved context 2>
-...
+===== QUESTION =====
+User question
 
-===== USER QUESTION =====
-<user query>
+===== ANSWER =====
 
-===== YOUR ANSWER =====
-```
-
-**Design Decisions:**
-- **Chunked Context:** Numbered chunks improve model's ability to cite sources
-- **Clear Separators:** `=====` markers prevent context bleeding
-- **Structured Flow:** System rules → Data → Query → Response reduces confusion
+### Key File
+- `generator.py`
 
 ---
 
-## Hallucination Prevention Mechanisms
+## 8. RAG Pipeline
 
-### Layer 1: Pre-Generation (Retrieval)
-- **Empty Context Check:** If retriever returns no chunks, immediate refusal
-- **Relevance Threshold:** Low-confidence retrievals trigger refusal
+### Purpose
+Connect retrieval and generation into a single flow.
 
-### Layer 2: In-Prompt (System Instructions)
-- **Explicit Refusal Training:** Model is instructed to refuse gracefully
-- **Grounding Emphasis:** "ONLY from Context" repeated multiple times
-- **Forbidden Behaviors:** Explicitly lists what NOT to do
+### Steps
+1. Accept user query
+2. Retrieve relevant context
+3. Validate context availability
+4. Generate answer or refusal
 
-### Layer 3: Post-Generation (Validation - Future Work)
-- Answer length sanity check (not empty)
-- Keyword matching (ensure answer relates to query)
-- Confidence scoring (if model provides it)
+### Key File
+- `rag_graph.py`
 
 ---
 
-## Refusal Strategy
+## 9. Hallucination Prevention Strategy
 
-### When to Refuse
+### Protection Layers
+- Retrieval-level filtering
+- Strict system prompt rules
+- Extensive unit testing
 
-| Scenario | Example | Action |
-|----------|---------|--------|
-| **Empty Context** | No chunks retrieved | Refuse immediately |
-| **Out-of-Scope** | Query about unrelated topic | Refuse with guidance |
-| **Partial Info** | Context has 50% of answer | Either partial answer + caveat OR full refusal |
-| **Ambiguous Query** | "When does it open?" (what?) | Ask for clarification |
-| **Fabrication Risk** | Asking for phone numbers not in context | Refuse + suggest contact method |
-
-### Refusal Message Template
-
-**Standard Refusal:**
-```
-"I don't have that information in my knowledge base. 
-Please contact the university administration or check the official website."
-```
-
-**Why This Phrasing:**
-- ✅ Honest about limitation
-- ✅ Provides alternative action
-- ✅ Maintains helpful tone
-- ❌ Doesn't apologize excessively
-- ❌ Doesn't make excuses
+### Example
+Query: "What is hostel curfew time?"
+Context: Not available  
+Result: Safe refusal
 
 ---
 
-## Edge Case Handling
+## 10. Testing Architecture
 
-### 1. Ambiguous Queries
-**Example:** "What are the hours?"  
-**Strategy:** 
-- If context has multiple "hours" (library, gym, office) → list all
-- If context unclear → ask "Do you mean library hours, gym hours, or office hours?"
+### Purpose
+Ensure correctness, safety, and stability.
 
-### 2. Compound Questions
-**Example:** "What are the library hours and admission fees?"  
-**Strategy:**
-- Answer both if context contains both
-- If partial: "Library hours are X. I don't have fee information."
+### Test Files
+- `test_clean_text.py`
+- `test_extraction.py`
+- `test_retriever.py`
+- `test_generator.py` (mocked LLM)
 
-### 3. Leading Questions
-**Example:** "The hostel curfew is 10 PM, right?"  
-**Strategy:**
-- If context confirms → confirm
-- If context conflicts → correct with context info
-- If context silent → refuse, don't confirm assumption
-
-### 4. Temporal Queries
-**Example:** "Is the library open right now?"  
-**Strategy:**
-- Provide hours from context
-- Do NOT infer current day/time
-- Response: "The library is open 8 AM - 8 PM on weekdays. You can check if it's currently within these hours."
+### Benefit
+- No dependency on real LLM
+- Fast and reliable testing
+- CI friendly
 
 ---
 
-## Model Configuration
+## 11. Current Limitations
 
-### Supported Models
-
-| Model | Size | Use Case |
-|-------|------|----------|
-| `llama3.1:8b` | 8B params (quantized) | Primary - Best balance |
-| `deepseek-coder:6.7b` | 6.7B params | Alternative - Faster |
-
-### Model Selection Strategy
-- **Default:** LLaMA 3.1 8B (best instruction-following)
-- **Fallback:** DeepSeek (if LLaMA unavailable)
-- **Future:** Allow user selection via CLI
-
-### Quantization Trade-offs
-- ✅ Faster inference
-- ✅ Lower memory usage
-- ⚠️ Slightly reduced accuracy (acceptable for retrieval-augmented tasks)
+- No multi-turn memory
+- Occasional over-refusal
+- No citation display yet
 
 ---
 
-## Testing Strategy
+## 12. Planned Improvements
 
-### Test Categories
-
-1. **Normal Operations**
-   - Correct answer with full context
-   - Specific detail extraction
-   - List-based queries
-
-2. **Hallucination Prevention**
-   - Empty context refusal
-   - Out-of-scope query refusal
-   - Fabrication prevention
-   - Partial context handling
-
-3. **Edge Cases**
-   - Ambiguous queries
-   - Whitespace-only context
-   - Very long context
-   - Special characters
-
-4. **Error Handling**
-   - None/null inputs
-   - Invalid model names
-   - Timeout scenarios
-
-5. **Safety & Quality**
-   - No external knowledge leakage
-   - Consistent refusal format
-   - Professional tone maintenance
-
-### Critical Test Scenarios
-
-**Scenario: Fabrication of Contact Details**
-```python
-Query: "What is the admissions office phone number?"
-Context: [Admission process, dates, documents] (NO PHONE NUMBER)
-Expected: REFUSE - must not generate +91-XXXXXXXXXX
-```
-
-**Scenario: Temporal Inference Prevention**
-```python
-Query: "Can I visit the library today?"
-Context: [Library hours: Mon-Fri 8AM-8PM]
-Expected: Provide hours, do NOT say "yes" or "no" (can't know today's date)
-```
-
-**Scenario: Cross-Domain Confusion**
-```python
-Query: "Where is the hostel?"
-Context: [Library location, admission office location]
-Expected: REFUSE - completely different domain
-```
+- Chunk-level citation
+- Confidence scoring
+- Multi-turn conversation memory
+- Metadata-based filtering
 
 ---
 
-## Prompt Evolution History
+## 13. Why This Architecture Is Strong
 
-### Version 1 (Initial - Day 1)
-```
-"You are a helpful assistant. Answer the question using the context."
-```
-**Issues:** Too permissive, frequent hallucinations
-
-### Version 2 (Day 2)
-```
-"Answer using ONLY the context. If not in context, say you cannot answer."
-```
-**Issues:** Still generated plausible-sounding wrong answers
-
-### Version 3 (Day 3 - Current)
-```
-CORE RULES + RESPONSE GUIDELINES + FORBIDDEN BEHAVIORS
-```
-**Improvements:**
-- Explicit prohibition list
-- Structured rules hierarchy
-- Refusal message template
-- Chunked context labeling
+- Zero hallucination tolerance
+- Fully testable design
+- Clear separation of responsibilities
+- Easy to maintain and extend
+- Mentor and academic friendly
 
 ---
 
-## Future Improvements
+14. Team Responsibilities & Project Ownership
 
-### Short-term (Week 1-2)
-- [ ] Add confidence scoring to responses
-- [ ] Implement citation of specific chunks
-- [ ] Multi-turn conversation context
+The SAGE Chatbot project follows a clear division of responsibilities across the full development lifecycle to ensure modularity, reliability, and smooth integration. Each team member owns specific technical domains while collaborating at integration points.
 
-### Medium-term (Month 1)
-- [ ] Fine-tune model on university-specific refusal patterns
-- [ ] Add user feedback loop (thumbs up/down)
-- [ ] Implement query reformulation for failed retrievals
+Overall Role Distribution
+Team Member	Primary Responsibility  |	Secondary Responsibility
+Barani	Pipeline Integration, CLI/App Flow  |	Embeddings, end-to-end demo flow
+Darineesh	Prompt Engineering, Usage & Safety  | 	LLM behavior control, refusal design
+Mani	Architecture, Retrieval, Testing	 |  Data extraction support, quality validation
+ 
+**Project:** SAGE Chatbot  
 
-### Long-term (Month 2+)
-- [ ] Multi-modal support (answer from images in PDFs)
-- [ ] Personalization (student vs. faculty responses)
-- [ ] Proactive suggestions ("You might also want to know...")
-
----
-
-## Collaboration Notes
-
-### Handoff to Barani (Integration)
-- System prompt is finalized in `Generator.SYSTEM_PROMPT`
-- No configuration changes needed
-- Prompt is model-agnostic (works with LLaMA & DeepSeek)
-
-### Handoff to Mani (Testing)
-- Test suite covers all edge cases in `tests/test_generator.py`
-- Run with: `pytest tests/test_generator.py -v`
-- Hallucination scenarios documented in test file
-
----
-
-## References
-
-- **LangGraph Docs:** https://langchain-ai.github.io/langgraph/
-- **Prompt Engineering Guide:** https://www.promptingguide.ai/
-- **RAG Best Practices:** [Internal team wiki]
-
----
-
-**Document Owner:** Darineesh  
-**Last Updated:** Day 3  
-**Status:** ✅ Finalized for Integration
