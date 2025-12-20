@@ -1,429 +1,389 @@
-# SAGE Chatbot - System Architecture
-  1.System Overview
+# SAGE Chatbot Architecture
 
-SAGE (Smart Academic Guidance Engine) is a Retrieval-Augmented Generation chatbot that answers university queries using verified institutional documents. The system prioritizes factual accuracy through strict hallucination prevention.
+> Smart Academic Guidance Engine - Technical Architecture Documentation
 
-Core Principle: Answer only from verified documents. When information is unavailable, refuse gracefully rather than fabricate.
+---
 
- 2.Architecture Flow
+## Table of Contents
 
-User Query
+- [Overview](#overview)
+- [System Architecture](#system-architecture)
+- [Core Components](#core-components)
+- [Data Pipeline](#data-pipeline)
+- [Prompt Engineering](#prompt-engineering)
+- [Hallucination Prevention](#hallucination-prevention)
+- [Testing Strategy](#testing-strategy)
+- [Configuration](#configuration)
+- [Performance](#performance)
+
+---
+
+## Overview
+
+SAGE is a Retrieval-Augmented Generation chatbot that provides accurate, document-grounded answers to university-related queries. The system prioritizes factual accuracy through strict hallucination controls and context-grounded response generation.
+
+### Key Design Goals
+
+- **Accuracy First** - Zero tolerance for fabricated information
+- **Context Grounded** - All answers derived from verified documents
+- **Graceful Degradation** - Polite refusal when information unavailable
+- **Modular Design** - Independently testable components
+- **Multi-Model Support** - Configurable LLM backends
+
+---
+
+## System Architecture
+
+### High-Level Flow
+
+```
+┌─────────────┐
+│  User Query │
+└──────┬──────┘
+       │
+       v
+┌─────────────────┐
+│   Retriever     │  Fetch relevant chunks from vector DB
+│  (ChromaDB)     │  using semantic similarity search
+└──────┬──────────┘
+       │
+       v
+┌─────────────────┐
+│   Generator     │  LLM generates grounded answer
+│  (LLaMA 3.1)    │  using structured prompt
+└──────┬──────────┘
+       │
+       v
+┌─────────────────┐
+│    Response     │  Factual answer OR polite refusal
+└─────────────────┘
+```
+
+### Technology Stack
+
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| **Data Extraction** | PyMuPDF | PDF to text conversion |
+| **Text Processing** | Custom rules | Cleaning and normalization |
+| **Embeddings** | all-MiniLM-L6-v2 | Text to 384-dim vectors |
+| **Vector Store** | ChromaDB | Persistent vector storage |
+| **Retrieval** | Cosine similarity | Semantic search |
+| **Generation** | LLaMA 3.1 8B | Answer generation |
+| **Orchestration** | LangGraph | RAG pipeline management |
+| **Interface** | CLI (colorama) | User interaction |
+
+---
+
+## Core Components
+
+### 1. Data Extraction Layer
+
+Converts PDF documents into clean, structured text suitable for embedding.
+
+**Key Features:**
+- Base extraction using PyMuPDF
+- Document-specific cleaning rules
+- Ligature normalization
+- Header and footer removal
+- Source attribution preserved
+
+**Process Flow:**
+
+```
+PDF Document
     ↓
-Embedding Generation
+PyMuPDF extraction
     ↓
-Vector Similarity Search
+Basic cleaning (printable chars, ligatures)
     ↓
-Context Retrieval (Top-5 chunks)
+Document-specific rules
     ↓
-LLM Generation with Context
-    ↓
-Response Validation
-    ↓
-User Interface
+Cleaned text with source markers
+```
 
-  3.Core Components
+### 2. Embedding Layer
 
-- Data Extraction Layer
+Transforms text into vector representations for semantic search.
 
-Transforms PDF documents into clean, structured text for processing.
+**Configuration:**
+- **Model**: all-MiniLM-L6-v2 (SentenceTransformers)
+- **Dimensions**: 384
+- **Chunk Size**: 500 characters
+- **Overlap**: 100 characters
 
-Technology: PyMuPDF (fitz)
+**Chunking Strategy:**
 
-Process:
-Reads 10+ university PDF documents, removes headers, footers, and page numbers, normalizes special characters and ligatures, maintains document source attribution, and outputs cleaned text corpus of approximately 150KB.
+Overlapping windows maintain context across boundaries while keeping chunks manageable for the embedding model.
 
-Location: src/data_extraction/
+```
+Text: "The library is open from 8 AM to 8 PM on weekdays..."
 
-The extraction layer has document-specific extractors for academics, admission, facilities, and other document types. Each extractor inherits from a base extractor class and applies custom cleaning rules appropriate for its document type.
+Chunk 1: [0:500]   "The library is open from..."
+Chunk 2: [400:900] "...8 PM on weekdays. On weekends..."
+                    ↑
+                    100 char overlap
+```
 
+### 3. Vector Store
 
--- Embedding Layer
+Persistent storage and similarity search using ChromaDB.
 
-Converts text into vector representations for semantic similarity search.
+**Storage Structure:**
 
-Model: all-MiniLM-L6-v2 (SentenceTransformers)
-Dimensions: 384
-Framework: Hugging Face Transformers
+```
+data/vector_db/
+├── chroma.sqlite3          # Metadata and indices
+└── [uuid-collections]/     # Vector embeddings
+```
 
-Chunking Strategy:
-Chunk Size: 500 characters
-Overlap: 100 characters
-Method: Character-based splitting
+**Key Features:**
+- Automatic embedding on insert
+- Cosine similarity search
+- Persistent SQLite backend
+- Collection-based organization
 
-The overlap preserves context across chunk boundaries, preventing information loss during retrieval.
+### 4. Retrieval Layer
 
-Location: src/embeddings/
+Finds the most relevant document chunks for a given query.
 
+**Implementation:**
 
--- Vector Store
+```python
+class Retriever:
+    def __init__(self, top_k: int = 5):
+        self.client = chromadb.PersistentClient(path=VECTOR_DB_PATH)
+        self.collection = self.client.get_collection(name="sage_docs")
+        self.top_k = top_k
+    
+    def retrieve(self, query: str) -> List[str]:
+        results = self.collection.query(
+            query_texts=[query],
+            n_results=self.top_k
+        )
+        return results["documents"][0] if results["documents"] else []
+```
 
-Persistent storage for embedded document chunks with efficient similarity search.
+**Configuration:**
+- Default top-k: 5 chunks
+- Similarity metric: Cosine
+- No re-ranking (future enhancement)
 
-Technology: ChromaDB with SQLite backend
+### 5. Generation Layer
 
-Features:
-Automatic embedding generation on insertion, cosine similarity search, persistent storage across sessions, and collection-based organization.
+Generates contextually grounded answers using a structured approach.
 
-Storage: data/vector_db/
+**Supported Models:**
 
-The vector store contains approximately 300 chunks with query latency under 100ms.
+| Model | Parameters | Memory | Speed | Use Case |
+|-------|-----------|--------|-------|----------|
+| LLaMA 3.1 8B | 8B | ~4 GB | Medium | Primary (best balance) |
+| DeepSeek 6.7B | 6.7B | ~3.5 GB | Fast | Alternative (faster) |
 
+**Key Features:**
+- Three-section structured prompt
+- Empty context immediate refusal
+- Timeout handling (30 seconds)
+- Error message formatting
+- Context chunking with labels
 
--- Retrieval Layer
+### 6. RAG Pipeline
 
-Identifies and retrieves the most relevant document chunks for a query.
+Orchestrates the retrieval and generation process using LangGraph.
 
-Configuration:
-Top-K: 5 chunks (default)
-Similarity Metric: Cosine similarity
-Direct retrieval without re-ranking
+**State Definition:**
 
-Implementation:
-The retriever queries ChromaDB with the user's question, retrieves the 5 most similar chunks based on cosine similarity, and returns them for context generation. If no relevant chunks are found, it returns an empty list.
+```python
+class RAGState(TypedDict):
+    question: str       # User input query
+    context: List[str]  # Retrieved document chunks
+    answer: str         # Generated response
+```
 
-Location: src/retrieval/
+**Execution Graph:**
 
+```
+START
+  ↓
+retrieve_node (fetch top-k chunks)
+  ↓
+generate_node (create grounded answer)
+  ↓
+END
+```
 
--- Generation Layer
+### 7. Application Layer
 
-Generates contextually grounded answers using retrieved document chunks.
+Command-line interface with colored output for user interaction.
 
-Models:
-Primary: LLaMA 3.1 8B (4-bit quantized)
-Alternative: DeepSeek 6.7B (4-bit quantized)
-Interface: Ollama
+**Features:**
+- Interactive chat loop
+- Colored formatting (questions in green, answers in magenta)
+- Session history tracking
+- Graceful exit commands
 
-System Prompt Structure:
+---
 
-The generator uses a three-section prompt:
+## Data Pipeline
 
-Core Rules:
-Answer ONLY from provided context
-Refuse if context lacks the answer
-No assumptions or inferences
-No cross-context information mixing
-Ask for clarification if ambiguous
+### Offline Processing
 
-Response Guidelines:
-Be concise and direct
-Cite specific details (times, locations, procedures)
-Acknowledge partial information with caveats
-Maintain professional tone
-Present steps clearly
+Initial setup phase that prepares the knowledge base:
 
-Forbidden Behaviors:
-Never fabricate details (phone numbers, dates, names)
-Never answer out-of-scope queries
-Never use external knowledge
-Never use uncertain language ("I think", "probably")
+**Step 1: Extraction**
+```
+10 PDF files → PyMuPDF → Document-specific rules → cleaned_text.txt
+```
+Output: ~150 KB of cleaned text
 
-Safety Mechanism:
-Before calling the LLM, the generator checks if context is empty. If no context exists, it immediately returns a refusal message without making an LLM call. This prevents hallucination entirely for out-of-scope queries.
+**Step 2: Chunking**
+```
+cleaned_text.txt → 500-char chunks with 100-char overlap → ~300 chunks
+```
 
-Location: src/generation/
+**Step 3: Embedding**
+```
+300 text chunks → MiniLM encoder → 300 x 384-dim vectors
+```
 
+**Step 4: Storage**
+```
+Vectors + metadata → ChromaDB → Persistent storage
+```
 
-  4.RAG Pipeline
+### Online Processing
 
-Orchestrates the complete retrieval and generation workflow.
+Runtime query handling:
 
-Technology: LangGraph (StateGraph)
+**Step 1: Query Embedding**
+```
+User query → MiniLM encoder → 384-dim query vector
+```
 
-State:
-question: User query
-context: Retrieved document chunks
-answer: Generated response
+**Step 2: Similarity Search**
+```
+Query vector → ChromaDB cosine similarity → Top-5 chunks
+```
 
-Flow:
-User query enters pipeline, retrieve node performs vector search and gets top chunks, generate node constructs prompt with chunks and generates answer, response returned to user.
+**Step 3: Answer Generation**
+```
+Query + 5 chunks → LLaMA with structured prompt → Grounded answer
+```
 
-Location: src/pipeline/
+**Step 4: Display**
+```
+Answer → CLI with formatting → User sees response
+```
 
+---
 
-  5.Application Layer
+## Prompt Engineering
 
-Command-line interface for user interaction.
+### System Prompt Architecture
 
-Features:
-Interactive chat loop, colored output (user in cyan, bot in green), session continuity, and graceful exit with exit or quit commands.
+The generator uses a carefully structured three-section prompt:
 
-Location: src/app/
+#### Section 1: Core Rules
 
+Non-negotiable constraints that define system behavior:
 
-  6.Utilities Layer
+1. Answer ONLY from provided Context
+2. Refuse if Context lacks answer
+3. No assumptions or inferences
+4. No cross-context information mixing
+5. Ask for clarification if ambiguous
 
-Shared helper functions and configuration.
+#### Section 2: Response Guidelines
 
-Components:
-clean_text.py for text preprocessing functions
-logger.py for structured logging setup
-config.py for path definitions and system constants
+Quality standards for useful responses:
 
-Location: src/utils/
-  7.Setup Phase (Offline)
+- Be concise and direct
+- Cite specific details (timings, locations, procedures)
+- Acknowledge partial information with caveats
+- Maintain professional, helpful tone
+- List procedural steps clearly
 
-PDF Extraction:
-10+ PDFs go through document extractors to produce cleaned_text.txt of approximately 150KB
+#### Section 3: Forbidden Behaviors
 
-Embedding Generation:
-cleaned_text.txt is chunked into 500 character pieces with 100 character overlap, producing approximately 300 chunks
+Explicit prohibitions to prevent hallucination:
 
-Vector Storage:
-300 chunks are embedded using MiniLM and stored in ChromaDB
+- Never fabricate details (phone numbers, dates, names, procedures)
+- Never answer out-of-scope queries
+- Never use external knowledge or training data
+- Never use uncertain language ("I think", "probably")
 
+### Prompt Template Structure
 
-  8.Query Phase (Online)
+```
+{SYSTEM_PROMPT}
 
-Query Embedding:
-User question like "What are the library hours?" is converted to 384-dimensional vector using MiniLM
+===== CONTEXT =====
+[Chunk 1]
+<retrieved context chunk 1>
 
-Similarity Search:
-Query vector is compared against ChromaDB using cosine search to retrieve top 5 chunks
+[Chunk 2]
+<retrieved context chunk 2>
 
-Answer Generation:
-Query plus 5 chunks are sent to LLaMA 3.1 which generates grounded answer
+[Chunk 3-5]
+<additional context chunks>
 
-Response Display:
-Answer is formatted and displayed to user via CLI
+===== USER QUESTION =====
+<user's original query>
 
-Typical Response Time: 2-5 seconds total
+===== YOUR ANSWER =====
+```
 
+### Design Rationale
 
-  9.Hallucination Prevention
+| Design Element | Purpose |
+|---------------|---------|
+| Numbered chunks | Enables potential source citation |
+| Clear separators | Prevents context bleeding |
+| Structured sections | Reduces model confusion |
+| Explicit prohibitions | Reinforces boundaries with negative examples |
 
-SAGE uses a three-layer defense system.
+---
 
-# Layer 1: Pre-Generation Filter
+## Hallucination Prevention
 
-Before calling the LLM, the system checks if any relevant context was retrieved. If context is empty, it immediately returns a refusal message without making an LLM call. This completely eliminates hallucination risk for out-of-scope queries.
+### Three-Layer Defense System
 
-# Layer 2: In-Prompt Instructions
+#### Layer 1: Pre-Generation Filter
 
-The system prompt explicitly instructs the model to answer ONLY from provided context, refuse when uncertain, never fabricate details, and avoid using external knowledge.
+Prevents unnecessary LLM calls when information is unavailable:
 
-The prompt uses numbered context chunks, clear section separators, and explicit prohibitions to reinforce grounding.
+```python
+if not context or all(not c.strip() for c in context):
+    return "I don't have that information in my knowledge base. 
+            Please contact the university administration or 
+            check the official website."
+```
 
-# Layer 3: Post-Generation Validation
+**Benefits:**
+- Saves compute resources
+- Faster refusal responses
+- No chance of hallucination
 
-Current validation includes response length checks, empty response handling, and error message standardization. Future enhancements will add keyword relevance checking and confidence scoring.
+#### Layer 2: In-Prompt Instructions
 
+Structured prompt enforces grounding:
 
-  10.Refusal Strategy
+- **Explicit Training**: Model instructed to refuse gracefully
+- **Repetition**: "ONLY from Context" repeated multiple times
+- **Negative Examples**: Forbidden behaviors explicitly listed
+- **Template Responses**: Pre-defined refusal messages
 
-# When SAGE Refuses
+#### Layer 3: Post-Generation Validation
 
-Empty Context: No relevant chunks retrieved leads to immediate refusal
+Quality checks on generated responses:
 
-Out-of-Scope: Topic not in knowledge base leads to polite refusal with guidance
+**Current Implementation:**
+- Empty response detection
+- Error handling (timeout, model failure)
+- Response formatting validation
 
-Partial Information: Incomplete context leads to providing available info with caveats OR refusing
-
-Ambiguous Query: Multiple interpretations leads to asking for clarification
-
-Fabrication Risk: Specific details not in docs leads to refusing and directing to contact
-
-# Standard Response
-
-"I don't have that information in my knowledge base. Please contact the university administration or check the official website."
-
-This message is honest about limitations, provides alternatives, and maintains a helpful tone.
-
-
-  11.Testing
-
-# Test Coverage
-
-Text Cleaning: 4 tests for preprocessing logic
-
-PDF Extraction: 3 tests for document parsing
-
-Retrieval: 4 tests for vector search logic (mocked ChromaDB)
-
-Generation: 20+ tests for hallucination prevention
-
-# Critical Scenarios
-
-Empty Context Refusal:
-Query about hostel curfew with no context must refuse
-
-Fabrication Prevention:
-Query for phone number not in docs must NOT generate fake number
-
-Out-of-Scope Refusal:
-Query about hostel with only library context must refuse
-
-Cross-Domain Prevention:
-Query about hostel with library or office locations must refuse
-
-# Running Tests
-
-All tests: pytest tests/ -v
-Generation tests: pytest tests/test_generator.py -v
-Single test: pytest tests/test_generator.py::test_name -v
-With coverage: pytest tests/ --cov=src --cov-report=html
-
-Test Files: tests/
-  12.Configuration
-
-# Models
-
-LLaMA 3.1 8B: 4-bit quantized, approximately 4GB memory, medium speed
-DeepSeek 6.7B: 4-bit quantized, approximately 3.5GB memory, faster
-
-Quantization reduces model size from 16GB to 4GB and increases speed 2-3x with minimal accuracy loss (95% vs 100%). This makes it practical for production RAG systems.
-
-# Key Parameters
-
-Retrieval:
-TOP_K = 5 (chunks retrieved)
-CHUNK_SIZE = 500 (characters)
-CHUNK_OVERLAP = 100 (characters)
-
-Generation:
-MAX_TOKENS = 512 (response length)
-TIMEOUT = 30 (seconds)
-TEMPERATURE = 0.7 (sampling)
-
-Embedding:
-MODEL = "all-MiniLM-L6-v2"
-DIMENSIONS = 384
-
-
-  13.Performance
-
-# Latency
-
-Query Embedding: approximately 50ms
-Vector Search: approximately 100ms
-LLM Generation: 2-5s
-Total: 2-5 seconds
-
-This is acceptable for interactive chatbot usage.
-
-# Scalability
-
-Current: 10+ PDFs, approximately 300 chunks, single user CLI
-
-Future Options:
-API deployment for multi-user (Flask/FastAPI)
-GPU acceleration for faster generation
-Distributed vector store (Milvus/Qdrant)
-Batch processing for embeddings
-
-
-# Project Structure
-
-SAGE/
-├── .venv/
-│
-├── data/
-│   ├── processed/
-│   │   └── cleaned_text.txt
-│   │
-│   ├── raw/
-│   │   ├── academics/                     # contains 20+ syllabus documents (not expanded)
-│   │   ├── administrative_regulations.pdf
-│   │   ├── admission_enrollment.pdf
-│   │   ├── campus_facilities.pdf
-│   │   ├── faculty_staff.pdf
-│   │   ├── fees_scholarships.pdf
-│   │   ├── placement_internships.pdf
-│   │   ├── research_innovation.pdf
-│   │   ├── sample.pdf
-│   │   ├── student_life.pdf
-│   │   └── tech_portals.pdf
-│   │
-│   └── vector_db/
-│       ├── 2fb2e8f1-e2e5-41...
-│       └── chroma.sqlite3
-│
-├── docs/
-│   ├── architecture.md
-│   └── roadmap.md
-│
-├── models/
-│   └── README.md
-│
-├── src/
-│   ├── app/
-│   │   ├── _pycache_/
-│   │   ├── _init_.py
-│   │   └── app.py
-│   │
-│   ├── data_extraction/
-│   │   ├── _pycache_/
-│   │   ├── _init_.py
-│   │   ├── extract_academics.py
-│   │   ├── extract_admin.py
-│   │   ├── extract_admission.py
-│   │   ├── extract_base.py
-│   │   ├── extract_facilities.py
-│   │   ├── extract_faculty.py
-│   │   ├── extract_fees.py
-│   │   ├── extract_placement.py
-│   │   ├── extract_research.py
-│   │   ├── extract_student_life.py
-│   │   ├── extract_tech_portals.py
-│   │   └── run_extraction.py
-│   │
-│   ├── embeddings/
-│   │   ├── _pycache_/
-│   │   ├── _init_.py
-│   │   ├── embedder.py
-│   │   └── vector_store.py
-│   │
-│   ├── generation/
-│   │   ├── _pycache_/
-│   │   ├── _init_.py
-│   │   └── generator.py
-│   │
-│   ├── pipeline/
-│   │   ├── _pycache_/
-│   │   ├── _init_.py
-│   │   └── rag_graph.py
-│   │
-│   ├── retrieval/
-│   │   ├── _pycache_/
-│   │   ├── _init_.py
-│   │   └── retriever.py
-│   │
-│   └── utils/
-│       ├── _pycache_/
-│       ├── _init_.py
-│       ├── clean_text.py
-│       ├── logger.py
-│       └── config.py
-│
-├── tests/
-│   ├── test_clean_text.py
-│   ├── test_extraction.py
-│   ├── test_generator.py
-│   └── test_retriever.py
-│
-├── .gitignore
-├── diagnostic_chroma.py
-├── LICENSE
-├── README.md
-└── requirements.txt
-
-
- 14.Future Enhancements
-
-# Short-term
-Confidence scores for answers
-Source citations in responses
-Multi-turn conversation memory
-
-# Medium-term
-User feedback mechanism
-Fine-tuning on university data
-Hybrid search (keyword + semantic)
-
-# Long-term
-Multi-modal support (tables, images)
-Voice interface
-Proactive suggestions
-
+**Planned Enhancements:**
+- Keyword relevance checking
 
 Maintained By: SAGE Development Team
+
 
