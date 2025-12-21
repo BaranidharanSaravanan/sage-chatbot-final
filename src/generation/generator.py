@@ -1,7 +1,12 @@
+# src/generation/generator.py
+
 from typing import List
 import subprocess
 import os
 import shutil
+
+# ✅ SINGLE SOURCE OF TRUTH
+from src.utils.config import ALLOWED_MODELS
 
 
 class Generator:
@@ -9,12 +14,6 @@ class Generator:
     Generator class for SAGE Chatbot.
     Uses Ollama safely on Windows / Linux / servers.
     """
-
-    # Explicit allowlist
-    ALLOWED_MODELS = [
-        "llama3.1:8b",
-        "deepseek-coder:6.7b"
-    ]
 
     SYSTEM_PROMPT = """You are SAGE, a knowledgeable assistant for university students and staff.
 
@@ -42,10 +41,11 @@ FORBIDDEN BEHAVIORS:
 """
 
     def __init__(self, model_name: str = "llama3.1:8b", timeout: int = 60):
-        if model_name not in self.ALLOWED_MODELS:
+        # 🔐 HARD SAFETY GATE (NOW CENTRALIZED)
+        if model_name not in ALLOWED_MODELS:
             raise ValueError(
                 f"Model '{model_name}' is not allowed. "
-                f"Allowed models: {self.ALLOWED_MODELS}"
+                f"Allowed models: {ALLOWED_MODELS}"
             )
 
         self.model_name = model_name
@@ -91,7 +91,7 @@ FORBIDDEN BEHAVIORS:
                 timeout=self.timeout
             )
 
-            # --- REAL failure only ---
+            # --- Real failure only ---
             if result.returncode != 0 and not result.stdout.strip():
                 return "The language model encountered an internal error. Please try again."
 
@@ -134,5 +134,5 @@ if __name__ == "__main__":
         "On weekends, the library is open from 9 AM to 5 PM."
     ]
 
-    gen = Generator(model_name="llama3.1:8b")
+    gen = Generator(model_name="deepseek-r1:8b")
     print(gen.generate("What are the library working hours?", context))
