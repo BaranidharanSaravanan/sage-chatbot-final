@@ -6,7 +6,7 @@ import os
 import shutil
 
 # ✅ SINGLE SOURCE OF TRUTH
-from src.utils.config import ALLOWED_MODELS
+from src.config import ALLOWED_MODELS
 
 
 class Generator:
