@@ -11,34 +11,40 @@ init(autoreset=True)
 
 
 def choose_model() -> str:
+    """Let the user select a model, returning the Ollama-approved model name."""
     print(Fore.CYAN + Style.BRIGHT + "\nAvailable Models:")
-    for i, model in enumerate(AVAILABLE_MODELS, start=1):
-        print(Fore.YELLOW + f"{i}. {model}")
+
+    # Map numeric options to Ollama model names
+    model_names = [AVAILABLE_MODELS[key]["name"] for key in AVAILABLE_MODELS]
+    for i, name in enumerate(model_names, start=1):
+        print(Fore.YELLOW + f"{i}. {name}")
 
     choice = input(
         Fore.GREEN
-        + f"\nSelect model (1-{len(AVAILABLE_MODELS)}) "
-        + f"[default: {DEFAULT_MODEL}]: "
+        + f"\nSelect model (1-{len(model_names)}) "
+        + f"[default: {AVAILABLE_MODELS[DEFAULT_MODEL]['name']}]: "
         + Style.RESET_ALL
     ).strip()
 
+    # Default model
     if not choice:
-        return DEFAULT_MODEL
+        return AVAILABLE_MODELS[DEFAULT_MODEL]["name"]
 
+    # Numeric choice
     if choice.isdigit():
         idx = int(choice) - 1
-        if 0 <= idx < len(AVAILABLE_MODELS):
-            return AVAILABLE_MODELS[idx]
+        if 0 <= idx < len(model_names):
+            return model_names[idx]
 
     print(Fore.RED + "Invalid choice. Using default model.\n")
-    return DEFAULT_MODEL
+    return AVAILABLE_MODELS[DEFAULT_MODEL]["name"]
 
 
 def main():
     print(Fore.CYAN + Style.BRIGHT + "\n=== Welcome to SAGE Chatbot ===")
     print(Fore.YELLOW + "Type 'exit' or 'quit' to leave the chatbot.\n")
 
-    # 🔹 Model selection (Step 3 requirement)
+    # 🔹 Model selection
     model_name = choose_model()
     print(Fore.CYAN + f"\nUsing model: {model_name}\n")
 

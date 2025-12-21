@@ -1,14 +1,16 @@
 from typing import List
 import subprocess
+import os
+import shutil
 
 
 class Generator:
     """
     Generator class for SAGE Chatbot.
-    Works only with approved quantized Ollama models.
+    Uses Ollama safely on Windows / Linux / servers.
     """
 
-    # Explicit allowlist (VERY important for team safety)
+    # Explicit allowlist
     ALLOWED_MODELS = [
         "llama3.1:8b",
         "deepseek-coder:6.7b"
@@ -40,12 +42,6 @@ FORBIDDEN BEHAVIORS:
 """
 
     def __init__(self, model_name: str = "llama3.1:8b", timeout: int = 60):
-        """
-        Args:
-            model_name (str): Approved Ollama model name
-            timeout (int): Max seconds to wait for model response
-        """
-
         if model_name not in self.ALLOWED_MODELS:
             raise ValueError(
                 f"Model '{model_name}' is not allowed. "
@@ -55,19 +51,22 @@ FORBIDDEN BEHAVIORS:
         self.model_name = model_name
         self.timeout = timeout
 
-    def generate(self, query: str, context: List[str]) -> str:
-        """
-        Generate a grounded answer using retrieved context.
-        """
+        # Portable Ollama resolution (works in venv + server)
+        self.ollama_path = os.environ.get("OLLAMA_PATH") or shutil.which("ollama")
+        if not self.ollama_path:
+            raise FileNotFoundError(
+                "Ollama executable not found. "
+                "Install Ollama or set OLLAMA_PATH environment variable."
+            )
 
-        # ---------- SAFETY 1: Empty or useless context ----------
+    def generate(self, query: str, context: List[str]) -> str:
+        # --- Safety 1: empty context ---
         if not context or all(not c.strip() for c in context):
             return (
                 "I don't have that information in my knowledge base. "
                 "Please contact the university administration or check the official website."
             )
 
-        # ---------- SAFETY 2: Merge context (NO chunk labels) ----------
         context_text = "\n\n".join(context)
 
         prompt = f"""{self.SYSTEM_PROMPT}
@@ -83,29 +82,25 @@ FORBIDDEN BEHAVIORS:
 
         try:
             result = subprocess.run(
-                ["ollama", "run", self.model_name],
-                input=prompt.encode("utf-8"),
+                [self.ollama_path, "run", self.model_name],
+                input=prompt,
                 capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=self.timeout
             )
 
-            # ---------- SAFETY 3: Ollama stderr check ----------
-            if result.stderr and result.stderr.strip():
-                return (
-                    "The language model encountered an internal error. "
-                    "Please try again."
-                )
+            # --- REAL failure only ---
+            if result.returncode != 0 and not result.stdout.strip():
+                return "The language model encountered an internal error. Please try again."
 
-            output = result.stdout.decode("utf-8").strip()
+            output = result.stdout.strip()
 
-            # ---------- SAFETY 4: Empty or junk output ----------
             if not output:
-                return (
-                    "I couldn't generate a response. "
-                    "Please try rephrasing your question."
-                )
+                return "I couldn't generate a response. Please try rephrasing your question."
 
-            # ---------- SAFETY 5: Anti-hallucination post-check ----------
+            # --- Anti-hallucination ---
             forbidden_phrases = [
                 "as an ai",
                 "i believe",
@@ -117,7 +112,7 @@ FORBIDDEN BEHAVIORS:
             ]
 
             lowered_output = output.lower()
-            if any(phrase in lowered_output for phrase in forbidden_phrases):
+            if any(p in lowered_output for p in forbidden_phrases):
                 return (
                     "I don't have that information in my knowledge base. "
                     "Please contact the university administration or check the official website."
@@ -128,22 +123,16 @@ FORBIDDEN BEHAVIORS:
         except subprocess.TimeoutExpired:
             return "Response generation timed out. Please try a simpler question."
 
-        except FileNotFoundError:
-            return "Ollama is not installed or not found in PATH."
-
         except Exception:
             return "An unexpected error occurred while generating the response."
 
 
-# ---------- Local Test ----------
+# ----------------- Local Test -----------------
 if __name__ == "__main__":
-    print("=== Generator Stability Test ===\n")
-
     context = [
         "The university library is open from 8 AM to 8 PM on weekdays.",
         "On weekends, the library is open from 9 AM to 5 PM."
     ]
 
     gen = Generator(model_name="llama3.1:8b")
-    answer = gen.generate("What are the library working hours?", context)
-    print(answer)
+    print(gen.generate("What are the library working hours?", context))

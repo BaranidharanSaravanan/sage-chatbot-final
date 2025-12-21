@@ -23,11 +23,32 @@ class RAGState(TypedDict):
     question: str
     context: List[str]
     answer: str
-    model_name: str
+    model_name: str   # always holds FULL ollama model name
 
 
 # -------- Core Components --------
 retriever = Retriever(top_k=5)
+
+
+def resolve_model_name(model_key_or_name: str) -> str:
+    """
+    Accepts either:
+    - model key (e.g., 'llama', 'deepseek')
+    - full model name (e.g., 'llama3.1:8b')
+
+    Returns:
+    - full Ollama model name
+    """
+    # If already a full model name, return as-is
+    for cfg in AVAILABLE_MODELS.values():
+        if model_key_or_name == cfg["name"]:
+            return model_key_or_name
+
+    # Otherwise treat it as a key
+    return AVAILABLE_MODELS.get(
+        model_key_or_name,
+        AVAILABLE_MODELS[DEFAULT_MODEL]
+    )["name"]
 
 
 def retrieve_node(state: RAGState) -> RAGState:
@@ -42,7 +63,9 @@ def retrieve_node(state: RAGState) -> RAGState:
 
 def generate_node(state: RAGState) -> RAGState:
     """Generate answer using retrieved context and selected model."""
-    generator = Generator(model_name=state["model_name"])
+    resolved_model = resolve_model_name(state["model_name"])
+
+    generator = Generator(model_name=resolved_model)
     answer = generator.generate(state["question"], state["context"])
 
     return {
@@ -71,7 +94,7 @@ def run_rag(question: str, model_name: str = DEFAULT_MODEL_NAME) -> str:
 
     Args:
         question (str): User query
-        model_name (str): Ollama model name
+        model_name (str): model key OR full Ollama model name
 
     Returns:
         str: Final answer
@@ -90,9 +113,9 @@ def run_rag(question: str, model_name: str = DEFAULT_MODEL_NAME) -> str:
 if __name__ == "__main__":
     query = "What are the library working hours?"
 
-    print("Default model test:")
-    print(run_rag(query))
+    print("Key-based model test:")
+    print(run_rag(query, model_name="llama"))
     print("-" * 50)
 
-    print("Explicit model test:")
+    print("Full-name model test:")
     print(run_rag(query, model_name="deepseek-coder:6.7b"))

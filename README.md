@@ -11,7 +11,7 @@ python -m src.embeddings.embedder
 python -m src.embeddings.vector_store
 → Stores chunks in ChromaDB
 
-python src/app/app.py
+python -m src.app.app
 → Run chatbot (type exit or quit to stop, Ctrl+C also works)
 
 Text cleaning:
