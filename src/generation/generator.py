@@ -130,7 +130,7 @@ FORBIDDEN BEHAVIORS:
 # ----------------- Local Test -----------------
 if __name__ == "__main__":
     context = [
-        "The university library is open from 8 AM to 8 PM on weekdays.",
+        "The university library is open from 8 AM to 8 PM on weekdays."
         "On weekends, the library is open from 9 AM to 5 PM."
     ]
 
