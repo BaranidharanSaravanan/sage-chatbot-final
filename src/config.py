@@ -11,15 +11,15 @@ AVAILABLE_MODELS = {
         "description": "LLaMA 3.1 8B Quantized (default, fastest)"
     },
     "deepseek": {
-        "name": "deepseek-coder:6.7b",
-        "description": "DeepSeek Coder 6.7B Quantized (fallback)"
+        "name": "deepseek-r1:8b",
+        "description": "DeepSeek R1 8B Quantized (reasoning, general-purpose)"
     }
 }
 
 # Hard safety allowlist (used by Generator)
 ALLOWED_MODELS = [
     "llama3.1:8b",
-    "deepseek-coder:6.7b"
+    "deepseek-r1:8b"
 ]
 
 # Key from AVAILABLE_MODELS
