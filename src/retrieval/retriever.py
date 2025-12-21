@@ -10,7 +10,7 @@ COLLECTION_NAME = "sage_docs"
 
 
 class Retriever:
-    def __init__(self, top_k: int = 8):
+    def __init__(self, top_k: int = 10):
         self.top_k = top_k
         self.collection = None
 
