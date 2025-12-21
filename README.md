@@ -2,10 +2,17 @@ Usage & Safety
 Usage
 Running the system:
 
-python src/data_extraction/run_extraction.py - Extracts and cleans all PDFs
-python src/embeddings/embedder.py - Creates text chunks from cleaned_text.txt
-python src/embeddings/vector_store.py - Stores chunks in ChromaDB
-python src/app/app.py - Run chatbot (type 'exit' or 'quit' to stop, Ctrl+C also works)
+python -m src.data_extraction.run_extraction
+→ Extracts and cleans all PDFs
+
+python -m src.embeddings.embedder
+→ Creates text chunks from cleaned text
+
+python -m src.embeddings.vector_store
+→ Stores chunks in ChromaDB
+
+python src/app/app.py
+→ Run chatbot (type exit or quit to stop, Ctrl+C also works)
 
 Text cleaning:
 
