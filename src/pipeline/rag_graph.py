@@ -5,55 +5,48 @@ import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-# ------------------- imports -------------------
 from typing import TypedDict, List
 from langgraph.graph import StateGraph, END
 
 from src.retrieval.retriever import Retriever
 from src.generation.generator import Generator
 from src.config import AVAILABLE_MODELS, DEFAULT_MODEL
+from src.utils.logger import logger
 
 
-# -------- Resolve default model name --------
 DEFAULT_MODEL_NAME = AVAILABLE_MODELS[DEFAULT_MODEL]["name"]
 
 
-# -------- State Definition --------
 class RAGState(TypedDict):
     question: str
     context: List[str]
     answer: str
-    model_name: str   # always holds FULL ollama model name
+    model_name: str
 
 
-# -------- Core Components --------
 retriever = Retriever(top_k=5)
 
 
 def resolve_model_name(model_key_or_name: str) -> str:
-    """
-    Accepts either:
-    - model key (e.g., 'llama', 'deepseek')
-    - full model name (e.g., 'llama3.1:8b')
-
-    Returns:
-    - full Ollama model name
-    """
-    # If already a full model name, return as-is
     for cfg in AVAILABLE_MODELS.values():
         if model_key_or_name == cfg["name"]:
             return model_key_or_name
 
-    # Otherwise treat it as a key
-    return AVAILABLE_MODELS.get(
+    resolved = AVAILABLE_MODELS.get(
         model_key_or_name,
         AVAILABLE_MODELS[DEFAULT_MODEL]
     )["name"]
 
+    logger.info(f"Resolved model '{model_key_or_name}' → '{resolved}'")
+    return resolved
+
 
 def retrieve_node(state: RAGState) -> RAGState:
-    """Retrieve relevant documents for the question."""
+    logger.info(f"Retrieval started for question: {state['question']}")
+
     docs = retriever.retrieve(state["question"])
+
+    logger.info(f"Retrieved {len(docs)} context chunks")
 
     return {
         **state,
@@ -62,11 +55,13 @@ def retrieve_node(state: RAGState) -> RAGState:
 
 
 def generate_node(state: RAGState) -> RAGState:
-    """Generate answer using retrieved context and selected model."""
     resolved_model = resolve_model_name(state["model_name"])
+    logger.info(f"Generation started using model: {resolved_model}")
 
     generator = Generator(model_name=resolved_model)
     answer = generator.generate(state["question"], state["context"])
+
+    logger.info("Generation completed")
 
     return {
         **state,
@@ -74,7 +69,6 @@ def generate_node(state: RAGState) -> RAGState:
     }
 
 
-# -------- Graph Definition --------
 graph = StateGraph(RAGState)
 
 graph.add_node("retrieve", retrieve_node)
@@ -87,18 +81,9 @@ graph.add_edge("generate", END)
 rag_app = graph.compile()
 
 
-# -------- Public API --------
 def run_rag(question: str, model_name: str = DEFAULT_MODEL_NAME) -> str:
-    """
-    Run the RAG pipeline for a single question.
+    logger.info(f"RAG pipeline invoked | model={model_name}")
 
-    Args:
-        question (str): User query
-        model_name (str): model key OR full Ollama model name
-
-    Returns:
-        str: Final answer
-    """
     result = rag_app.invoke({
         "question": question,
         "context": [],
@@ -106,10 +91,10 @@ def run_rag(question: str, model_name: str = DEFAULT_MODEL_NAME) -> str:
         "model_name": model_name
     })
 
+    logger.info("RAG pipeline completed")
     return result["answer"]
 
 
-# -------- Local Test --------
 if __name__ == "__main__":
     query = "What are the library working hours?"
 
