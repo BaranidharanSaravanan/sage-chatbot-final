@@ -1,15 +1,31 @@
-# Python environment
+# --------------------------
+# PYTHON BACKEND IGNORES
+# --------------------------
 .venv/
 __pycache__/
 *.pyc
 .pytest_cache/
-
-# ChromaDB / vector store
 data/vector_db/
 
-# OS / temp files
+# --------------------------
+# REACT FRONTEND IGNORES
+# --------------------------
+sage-frontend/node_modules/
+sage-frontend/build/
+sage-frontend/.parcel-cache/
+sage-frontend/dist/
+sage-frontend/.next/
+sage-frontend/package-lock.json
+sage-frontend/yarn.lock
+sage-frontend/npm-debug.log*
+
+# --------------------------
+# OS / TEMP FILES
+# --------------------------
 .DS_Store
+Thumbs.db
 
-# Local backup folder
+# --------------------------
+# BACKUP FOLDERS
+# --------------------------
 sage-chatbot-backup.git/
-
