@@ -51,7 +51,6 @@ function App() {
     "What is the hostel fee?",
     "Tell me about placements",
     "Who is the hod of cse dept",
-    "Who is the hod of civil dept",
     "What are the  college working hours?",
     
     "How many proffesor in college",
@@ -138,15 +137,14 @@ function App() {
   
 
 
-  <p style={styles.infoLine}> <b>Campus:</b> Pondicherry Technological University</p>
+  <p style={styles.infoLine}> <b>Campus:</b> Puducherry Technological University(PTU)</p>
   <p style={styles.infoLine}> <b>Location:</b> Pondicherry</p>
   <p style={styles.infoLine}> <b>Chancellor:</b> Shri. K. Kailashnathan, I.A.S (Retd.)</p>
-  <p style={styles.infoLine}> <b>Pro-Chancellor:</b> Shri. Mohammed Ahsan Abid, I.A.S. </p>
   <p style={styles.infoLine}> <b>Vice-Chancellor:</b> Dr.S Mohan</p>
   
   
   <p style={styles.infoLine}> <b>Programs:</b> B.Tech, M.Tech, MBA, MCA, PhD</p>
-  <p style={styles.infoLine}> <b>Departments:</b> CSE, ECE, EEE, Mechanical, Civil, IT, Chemical,Mectronics</p>
+  <p style={styles.infoLine}> <b>Departments:</b> CSE, ECE, EEE, Mechanical, Civil, IT, Chemical,Mechatronics</p>
   <p style={styles.infoLine}> <b>Faculty:</b> 120+ Professors & Research Scholars</p>
   <p style={styles.infoLine}> <b>Working Days:</b> Monday – Saturday</p>
   <p style={styles.infoLine}> <b>Office Hours:</b> 9:00 AM – 5:00 PM</p>
@@ -283,7 +281,7 @@ messagesBox: {
   display: "flex",
   flexDirection: "column",
   gap: "10px",
-  background: "transparent",     // 👈 ADD THIS
+  background: "transparent",     
 },
 
 
